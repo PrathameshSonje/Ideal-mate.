@@ -62,7 +62,7 @@ export const appRouter = router({
 
     return file
   }),
-  getFile: privateProcedure.input(z.object({ key: z.string() })).mutation(async ({ ctx, input} ) => {
+  getFile: privateProcedure.input(z.object({ key: z.string() })).mutation(async ({ ctx, input }) => {
     const { userId } = ctx
 
     const file = await db.file.findFirst({
@@ -72,10 +72,23 @@ export const appRouter = router({
       }
     })
 
-    if(!file) throw new TRPCError({code : 'NOT_FOUND'})
+    if (!file) throw new TRPCError({ code: 'NOT_FOUND' })
 
     return file
-  })
+  }),
+  getUploadStatus: privateProcedure
+    .input(z.object({ fileId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const file = await db.file.findFirst({
+        where: {
+          id: input.fileId,
+          userId: ctx.userId
+        },
+      })
+
+      if (!file) return { status: 'PENDING' as const }
+      return { status: file.uploadstatus }
+    })
 })
 
 export type AppRouter = typeof appRouter;

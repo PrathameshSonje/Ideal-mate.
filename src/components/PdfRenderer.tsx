@@ -102,7 +102,7 @@ const PdfRenderer = ({ url }: PdfRendererProps) => {
                         }}
                         onLoadSuccess={({ numPages }) => setnumPages(numPages)}
                         file={url} className='max-h-full'>
-                        <Page width={width ? width : 1} pageNumber={currPage}></Page>
+                        <Page width={width} pageNumber={currPage}></Page>
                     </Document>
                 </div>
             </div>
