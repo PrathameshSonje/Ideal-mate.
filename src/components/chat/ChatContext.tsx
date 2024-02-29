@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import { createContext } from "vm";
+import { createContext } from "react";
 import { useToast } from "../ui/use-toast";
 import { useMutation } from "@tanstack/react-query";
 
@@ -12,7 +12,7 @@ type StreamResponse = {
   isLoading: boolean
 }
 
-export const ChatContext = createContext({
+export const ChatContext = createContext<StreamResponse>({
   addMessage: () => {},
   message: '',
   handleInputChange: () => {},
@@ -48,14 +48,15 @@ export const ChatContextProvider = ({ fileId, children }: Props) => {
         },
     })
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setMessage(e.target.value);
     }
 
     const addMessage = () => sendMessage({ message })
 
     return (
-        <ChatContext.Provider value={{
+        <ChatContext.Provider 
+        value={{
             addMessage,
             message,
             handleInputChange,
