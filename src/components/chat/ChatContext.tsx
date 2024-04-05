@@ -1,22 +1,24 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useRef, useState } from "react";
 import { createContext } from "react";
 import { useToast } from "../ui/use-toast";
 import { useMutation } from "@tanstack/react-query";
+import { trpc } from "@/app/_trpc/client";
+import { INFINITE_QUERY_LIMIT } from "@/config/infinite-query";
 
 type StreamResponse = {
-  addMessage: () => void
-  message: string
-  handleInputChange: (
-    event: React.ChangeEvent<HTMLTextAreaElement>
-  ) => void
-  isLoading: boolean
+    addMessage: () => void
+    message: string
+    handleInputChange: (
+        event: React.ChangeEvent<HTMLTextAreaElement>
+    ) => void
+    isLoading: boolean
 }
 
 export const ChatContext = createContext<StreamResponse>({
-  addMessage: () => {},
-  message: '',
-  handleInputChange: () => {},
-  isLoading: false,
+    addMessage: () => { },
+    message: '',
+    handleInputChange: () => { },
+    isLoading: false,
 })
 
 interface Props {
@@ -27,6 +29,9 @@ interface Props {
 export const ChatContextProvider = ({ fileId, children }: Props) => {
     const [message, setMessage] = useState<string>('')
     const [isLoading, setIsLoading] = useState<boolean>(false)
+
+    const utils = trpc.useContext()
+    const backupMessage = useRef('')
 
     const { toast } = useToast()
 
@@ -46,6 +51,66 @@ export const ChatContextProvider = ({ fileId, children }: Props) => {
 
             return response.body
         },
+        onMutate: async ({ message }) => {
+            backupMessage.current = message
+            setMessage('')
+
+
+            //step 1
+            await utils.getFileMessage.cancel()
+
+            //step 2
+            const previousMessages = utils.getFileMessage.getInfiniteData()
+
+            //step 3
+            utils.getFileMessage.setInfiniteData(
+                { fileId, limit: INFINITE_QUERY_LIMIT },
+                (old) => {
+                    if (!old) {
+                        return {
+                            pages: [],
+                            pageParams: []
+                        }
+                    }
+
+                    let newPages = [...old.pages]
+                    let latestPage = newPages[0]!
+
+                    latestPage.messages = [
+                        {
+                            createdAt: new Date().toISOString(),
+                            id: crypto.randomUUID(),
+                            text: message,
+                            isUserMessage: true
+                        },
+                        ...latestPage.messages,
+                    ]
+
+                    newPages[0] = latestPage
+                    return {
+                        ...old,
+                        page: newPages,
+                    }
+                }
+            )
+
+            setIsLoading(true)
+
+            return {
+                previousMessages: previousMessages?.pages.flatMap((page) => page.messages) ?? []
+            }
+        },
+        onError: (_, __, context) => {
+            setMessage(backupMessage.current)
+            utils.getFileMessage.setData(
+                { fileId },
+                { messages: context?.previousMessages ?? [] }
+            )
+        },
+        onSettled: async () => {
+            setIsLoading(false)
+            await utils.getFileMessage.invalidate({ fileId })
+        }
     })
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -55,13 +120,13 @@ export const ChatContextProvider = ({ fileId, children }: Props) => {
     const addMessage = () => sendMessage({ message })
 
     return (
-        <ChatContext.Provider 
-        value={{
-            addMessage,
-            message,
-            handleInputChange,
-            isLoading,
-        }}>
+        <ChatContext.Provider
+            value={{
+                addMessage,
+                message,
+                handleInputChange,
+                isLoading,
+            }}>
             {children}
         </ChatContext.Provider>
     )
